@@ -136,6 +136,32 @@ body {
   }
 }
 
+/* Normaliza inputs type="time" en iOS/WebKit para que coincidan visualmente con inputs de texto */
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+input[type="time"]::-webkit-datetime-edit {
+  padding: 0;
+}
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  padding: 0;
+}
+input[type="time"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding-right: 2px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
 /* Scrollbar discreta */
 ::-webkit-scrollbar {
   width: 4px;
