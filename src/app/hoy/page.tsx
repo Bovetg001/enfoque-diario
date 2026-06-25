@@ -10,7 +10,6 @@ import { WaterTracker } from "@/components/hoy/WaterTracker";
 import { MovementTracker } from "@/components/hoy/MovementTracker";
 import { EveningReflectionForm } from "@/components/hoy/EveningReflectionForm";
 import { DBErrorMessage } from "@/components/shared/DBErrorMessage";
-import { DebugOverlay } from "@/components/shared/DebugOverlay";
 import { Button } from "@/components/ui/button";
 import { toDateKey } from "@/db/db";
 import {
@@ -66,71 +65,20 @@ export default function HoyPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isMinimal, setIsMinimal] = useState(false);
-  const [debugLog, setDebugLog] = useState<string[]>(["render inicial"]);
-
-  const dbg = useCallback((msg: string) => {
-    const ts = new Date().toISOString().slice(11, 23);
-    console.log(`[Hoy] ${msg}`);
-    setDebugLog((prev) => [...prev, `[${ts}] ${msg}`]);
-  }, []);
 
   const load = useCallback(async () => {
-    const timer = setTimeout(() => {
-      dbg("❌ TIMEOUT 10s — forzando fin de carga");
-      setLoadError("Timeout 10s: IndexedDB no respondió");
-      setLoading(false);
-    }, 10000);
-
     try {
-      // Paso 1: test raw IndexedDB
-      dbg("🔍 probando indexedDB nativo...");
-      await new Promise<void>((resolve, reject) => {
-        try {
-          const req = indexedDB.open("__enfoque_debug__", 1);
-          req.onsuccess = () => { try { req.result.close(); } catch {} resolve(); };
-          req.onerror = () => reject(req.error ?? new Error("idb open error"));
-          req.onblocked = () => reject(new Error("indexedDB blocked"));
-          // Timeout interno de 3 segundos para el test
-          setTimeout(() => reject(new Error("idb open timeout 3s")), 3000);
-        } catch (e) {
-          reject(e);
-        }
-      });
-      dbg("✅ indexedDB nativo OK");
-
-      // Pasos secuenciales para detectar exactamente cuál falla
-      dbg("getSettings...");
-      const settings = await getSettings();
-      dbg("✅ settings OK");
-
-      dbg("getOrCreateDailyPlan...");
-      const plan = await getOrCreateDailyPlan(today);
-      dbg("✅ dailyPlan OK");
-
-      dbg("getPrioritiesByDate...");
-      const pris = await getPrioritiesByDate(today);
-      dbg(`✅ priorities OK (${pris.length})`);
-
-      dbg("getWaterByDate...");
-      const water = await getWaterByDate(today);
-      dbg("✅ water OK");
-
-      dbg("getMovementByDate...");
-      const movement = await getMovementByDate(today);
-      dbg("✅ movement OK");
-
-      dbg("getEveningReflection...");
-      const reflection = await getEveningReflection(today);
-      dbg("✅ evening OK");
-
-      dbg("getPastWoopEntries...");
-      const pastW = await getPastWoopEntries(10);
-      dbg("✅ pastWoops OK");
-
-      dbg("getBreathingByDate...");
-      const breathings = await getBreathingByDate(today);
-      dbg("✅ breathing OK");
-
+      const [settings, plan, pris, water, movement, reflection, pastW, breathings] =
+        await Promise.all([
+          getSettings(),
+          getOrCreateDailyPlan(today),
+          getPrioritiesByDate(today),
+          getWaterByDate(today),
+          getMovementByDate(today),
+          getEveningReflection(today),
+          getPastWoopEntries(10),
+          getBreathingByDate(today),
+        ]);
       setUserName(settings.name);
       setWaterGoal(settings.waterGoalMl);
       setDayPlan(plan);
@@ -140,22 +88,17 @@ export default function HoyPage() {
       setEveningReflection(reflection);
       setPastWoops(pastW);
       setBreathingDone(breathings.some((b) => b.completed));
-      dbg("✅ estado actualizado — listo");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      dbg(`❌ ERROR: ${msg}`);
-      setLoadError(msg);
+      setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      clearTimeout(timer);
       setLoading(false);
     }
-  }, [today, dbg]);
+  }, [today]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Calcular estado del día
   useEffect(() => {
     if (!dayPlan) return;
     const completed = priorities.filter((p) => p.type !== "extra" && p.completed).length;
@@ -242,7 +185,6 @@ export default function HoyPage() {
   if (loading) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Hoy" />
         <div className="flex items-center justify-center min-h-[60dvh]">
           <div className="animate-pulse text-[var(--muted-foreground)] text-sm">Cargando...</div>
         </div>
@@ -253,7 +195,6 @@ export default function HoyPage() {
   if (loadError) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Hoy" />
         <DBErrorMessage
           message={loadError}
           onRetry={() => { setLoadError(""); setLoading(true); load(); }}
@@ -264,7 +205,6 @@ export default function HoyPage() {
 
   return (
     <AppShell>
-      <DebugOverlay lines={debugLog} page="Hoy" />
       <DailyGreeting
         name={userName}
         status={dayPlan?.status ?? "empty"}

@@ -8,20 +8,19 @@ import { WeeklyChart } from "@/components/progreso/WeeklyChart";
 import { ActivityCalendar } from "@/components/progreso/ActivityCalendar";
 import { BarChart2 } from "lucide-react";
 import { DBErrorMessage } from "@/components/shared/DBErrorMessage";
-import { DebugOverlay } from "@/components/shared/DebugOverlay";
 import { getSessionsRange } from "@/db/repositories/focusSessions";
 import { getBreathingRange, getWaterRange, getMovementRange, getEveningReflectionsRange } from "@/db/repositories/wellness";
 import { getPrioritiesRange } from "@/db/repositories/priorities";
 import { getAllDailyPlans } from "@/db/repositories/dailyPlan";
 import type { DayStatus } from "@/types";
 
-interface StatCard {
+interface StatCardProps {
   label: string;
   value: string | number;
   sub?: string;
 }
 
-function StatCard({ label, value, sub }: StatCard) {
+function StatCard({ label, value, sub }: StatCardProps) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
       <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
@@ -48,78 +47,33 @@ export default function ProgresoPage() {
   const [whatWorking, setWhatWorking] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [debugLog, setDebugLog] = useState<string[]>(["render inicial"]);
-
-  function dbg(msg: string) {
-    const ts = new Date().toISOString().slice(11, 23);
-    console.log(`[Progreso] ${msg}`);
-    setDebugLog((prev) => [...prev, `[${ts}] ${msg}`]);
-  }
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadData() {
-    const timer = setTimeout(() => {
-      dbg("❌ TIMEOUT 10s — forzando fin de carga");
-      setLoadError("Timeout 10s: IndexedDB no respondió");
-      setLoading(false);
-    }, 10000);
-
     try {
-      // Test raw IndexedDB first
-      dbg("🔍 probando indexedDB nativo...");
-      await new Promise<void>((resolve, reject) => {
-        try {
-          const req = indexedDB.open("__enfoque_debug__", 1);
-          req.onsuccess = () => { try { req.result.close(); } catch {} resolve(); };
-          req.onerror = () => reject(req.error ?? new Error("idb open error"));
-          req.onblocked = () => reject(new Error("indexedDB blocked"));
-          setTimeout(() => reject(new Error("idb open timeout 3s")), 3000);
-        } catch (e) {
-          reject(e);
-        }
-      });
-      dbg("✅ indexedDB nativo OK");
-
       const now = new Date();
       const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
       const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
       const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
       const monthEnd = format(now, "yyyy-MM-dd");
 
-      dbg("getSessionsRange...");
-      const sessions = await getSessionsRange(weekStart, weekEnd);
-      dbg(`✅ sessions OK (${sessions.length})`);
-
-      dbg("getBreathingRange...");
-      const breathings = await getBreathingRange(weekStart, weekEnd);
-      dbg("✅ breathings OK");
-
-      dbg("getWaterRange...");
-      const waters = await getWaterRange(weekStart, weekEnd);
-      dbg("✅ waters OK");
-
-      dbg("getMovementRange...");
-      const movements = await getMovementRange(weekStart, weekEnd);
-      dbg("✅ movements OK");
-
-      dbg("getEveningReflectionsRange...");
-      const evenings = await getEveningReflectionsRange(weekStart, weekEnd);
-      dbg("✅ evenings OK");
-
-      dbg("getPrioritiesRange...");
-      const priorities = await getPrioritiesRange(weekStart, weekEnd);
-      dbg("✅ priorities OK");
-
-      dbg("getAllDailyPlans...");
-      const allPlans = await getAllDailyPlans();
-      dbg(`✅ allPlans OK (${allPlans.length})`);
+      const [sessions, breathings, waters, movements, evenings, priorities, allPlans] =
+        await Promise.all([
+          getSessionsRange(weekStart, weekEnd),
+          getBreathingRange(weekStart, weekEnd),
+          getWaterRange(weekStart, weekEnd),
+          getMovementRange(weekStart, weekEnd),
+          getEveningReflectionsRange(weekStart, weekEnd),
+          getPrioritiesRange(weekStart, weekEnd),
+          getAllDailyPlans(),
+        ]);
 
       const completedSessions = sessions.filter((s) => s.state === "completed");
       const focusMin = completedSessions.reduce((s, ses) => s + (ses.actualMinutes ?? ses.plannedMinutes), 0);
+
       const waterDays: Record<string, number> = {};
       waters.forEach((w) => { waterDays[w.dateKey] = (waterDays[w.dateKey] ?? 0) + w.amountMl; });
       const waterAvg = Object.values(waterDays).length > 0
@@ -156,10 +110,6 @@ export default function ProgresoPage() {
         })
       );
 
-      dbg("getSessionsRange (month)...");
-      await getSessionsRange(monthStart, monthEnd);
-      dbg("✅ monthSessions OK");
-
       const calDays = allPlans
         .filter((p) => p.dateKey >= monthStart && p.dateKey <= monthEnd)
         .map((p) => ({ dateKey: p.dateKey, status: p.status }));
@@ -179,13 +129,9 @@ export default function ProgresoPage() {
         working.push("Sigue registrando para ver patrones en tu semana.");
       }
       setWhatWorking(working);
-      dbg("✅ todo listo");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      dbg(`❌ ERROR: ${msg}`);
-      setLoadError(msg);
+      setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      clearTimeout(timer);
       setLoading(false);
     }
   }
@@ -193,7 +139,6 @@ export default function ProgresoPage() {
   if (loading) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Progreso" />
         <div className="flex items-center justify-center min-h-[60dvh]">
           <div className="animate-pulse text-sm text-[var(--muted-foreground)]">Cargando...</div>
         </div>
@@ -204,7 +149,6 @@ export default function ProgresoPage() {
   if (loadError) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Progreso" />
         <DBErrorMessage message={loadError} onRetry={() => { setLoadError(""); setLoading(true); loadData(); }} />
       </AppShell>
     );
@@ -212,7 +156,6 @@ export default function ProgresoPage() {
 
   return (
     <AppShell>
-      <DebugOverlay lines={debugLog} page="Progreso" />
       <div className="px-4 pt-5 pb-4 space-y-5">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <BarChart2 size={20} className="text-[var(--primary)]" />

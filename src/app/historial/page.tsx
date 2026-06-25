@@ -3,11 +3,8 @@ import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { AppShell } from "@/components/layout/AppShell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { RoutineStatusBadge } from "@/components/shared/RoutineStatusBadge";
-import { DebugOverlay } from "@/components/shared/DebugOverlay";
 import { getAllDailyPlans } from "@/db/repositories/dailyPlan";
 import { getPrioritiesByDate } from "@/db/repositories/priorities";
 import { getSessionsByDate } from "@/db/repositories/focusSessions";
@@ -96,84 +93,43 @@ export default function HistorialPage() {
   const [loadError, setLoadError] = useState("");
   const [allDetails, setAllDetails] = useState<DayDetail[]>([]);
   const [search, setSearch] = useState("");
-  const [debugLog, setDebugLog] = useState<string[]>(["render inicial"]);
-
-  function dbg(msg: string) {
-    const ts = new Date().toISOString().slice(11, 23);
-    console.log(`[Historial] ${msg}`);
-    setDebugLog((prev) => [...prev, `[${ts}] ${msg}`]);
-  }
 
   useEffect(() => {
     loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadHistory() {
-    const timer = setTimeout(() => {
-      dbg("❌ TIMEOUT 10s — forzando fin de carga");
-      setLoadError("Timeout 10s: IndexedDB no respondió");
-      setLoading(false);
-    }, 10000);
-
     try {
-      // Test raw IndexedDB first
-      dbg("🔍 probando indexedDB nativo...");
-      await new Promise<void>((resolve, reject) => {
-        try {
-          const req = indexedDB.open("__enfoque_debug__", 1);
-          req.onsuccess = () => { try { req.result.close(); } catch {} resolve(); };
-          req.onerror = () => reject(req.error ?? new Error("idb open error"));
-          req.onblocked = () => reject(new Error("indexedDB blocked"));
-          setTimeout(() => reject(new Error("idb open timeout 3s")), 3000);
-        } catch (e) {
-          reject(e);
-        }
-      });
-      dbg("✅ indexedDB nativo OK");
-
-      dbg("getAllDailyPlans...");
       const plans = await getAllDailyPlans();
-      dbg(`✅ plans OK (${plans.length})`);
-
-      const limited = plans.slice(0, 60);
-      dbg(`procesando ${limited.length} días...`);
-
-      const details: DayDetail[] = [];
-      for (let i = 0; i < limited.length; i++) {
-        const plan = limited[i];
-        if (i === 0) dbg(`primer día: ${plan.dateKey}`);
-        const [priorities, sessions, water, movement, breathings, evening] = await Promise.all([
-          getPrioritiesByDate(plan.dateKey),
-          getSessionsByDate(plan.dateKey),
-          getWaterByDate(plan.dateKey),
-          getMovementByDate(plan.dateKey),
-          getBreathingByDate(plan.dateKey),
-          getEveningReflection(plan.dateKey),
-        ]);
-        const mainPriorities = priorities.filter((p) => p.type !== "extra");
-        const completedSessions = sessions.filter((s) => s.state === "completed");
-        details.push({
-          plan,
-          prioritiesCompleted: mainPriorities.filter((p) => p.completed).length,
-          prioritiesTotal: mainPriorities.length,
-          focusBlocks: completedSessions.length,
-          focusMinutes: completedSessions.reduce((s, ses) => s + (ses.actualMinutes ?? ses.plannedMinutes), 0),
-          waterTotal: water.reduce((s, w) => s + w.amountMl, 0),
-          movementMinutes: movement.reduce((s, m) => s + m.durationMinutes, 0),
-          breathingDone: breathings.some((b) => b.completed),
-          eveningDone: !!evening,
-        });
-      }
-
+      const details: DayDetail[] = await Promise.all(
+        plans.slice(0, 60).map(async (plan) => {
+          const [priorities, sessions, water, movement, breathings, evening] = await Promise.all([
+            getPrioritiesByDate(plan.dateKey),
+            getSessionsByDate(plan.dateKey),
+            getWaterByDate(plan.dateKey),
+            getMovementByDate(plan.dateKey),
+            getBreathingByDate(plan.dateKey),
+            getEveningReflection(plan.dateKey),
+          ]);
+          const mainPriorities = priorities.filter((p) => p.type !== "extra");
+          const completedSessions = sessions.filter((s) => s.state === "completed");
+          return {
+            plan,
+            prioritiesCompleted: mainPriorities.filter((p) => p.completed).length,
+            prioritiesTotal: mainPriorities.length,
+            focusBlocks: completedSessions.length,
+            focusMinutes: completedSessions.reduce((s, ses) => s + (ses.actualMinutes ?? ses.plannedMinutes), 0),
+            waterTotal: water.reduce((s, w) => s + w.amountMl, 0),
+            movementMinutes: movement.reduce((s, m) => s + m.durationMinutes, 0),
+            breathingDone: breathings.some((b) => b.completed),
+            eveningDone: !!evening,
+          };
+        })
+      );
       setAllDetails(details);
-      dbg("✅ historial listo");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      dbg(`❌ ERROR: ${msg}`);
-      setLoadError(msg);
+      setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      clearTimeout(timer);
       setLoading(false);
     }
   }
@@ -190,7 +146,6 @@ export default function HistorialPage() {
   if (loading) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Historial" />
         <div className="flex items-center justify-center min-h-[60dvh]">
           <div className="animate-pulse text-sm text-[var(--muted-foreground)]">Cargando historial...</div>
         </div>
@@ -201,7 +156,6 @@ export default function HistorialPage() {
   if (loadError) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Historial" />
         <DBErrorMessage message={loadError} onRetry={() => { setLoadError(""); setLoading(true); loadHistory(); }} />
       </AppShell>
     );
@@ -209,7 +163,6 @@ export default function HistorialPage() {
 
   return (
     <AppShell>
-      <DebugOverlay lines={debugLog} page="Historial" />
       <div className="px-4 pt-5 pb-4 space-y-4">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Clock size={20} className="text-[var(--primary)]" />

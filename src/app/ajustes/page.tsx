@@ -22,7 +22,6 @@ import { getSettings, updateSettings } from "@/db/repositories/settings";
 import { exportAllData, importAllData, clearAllData } from "@/db/repositories/export";
 import { downloadJSON } from "@/lib/utils";
 import { DBErrorMessage } from "@/components/shared/DBErrorMessage";
-import { DebugOverlay } from "@/components/shared/DebugOverlay";
 import type { UserSettings } from "@/types";
 
 export default function AjustesPage() {
@@ -31,55 +30,20 @@ export default function AjustesPage() {
   const [saved, setSaved] = useState(false);
   const [importError, setImportError] = useState("");
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
-  const [debugLog, setDebugLog] = useState<string[]>(["render inicial"]);
-
-  function dbg(msg: string) {
-    const ts = new Date().toISOString().slice(11, 23);
-    console.log(`[Ajustes] ${msg}`);
-    setDebugLog((prev) => [...prev, `[${ts}] ${msg}`]);
-  }
 
   function loadSettings() {
-    const timer = setTimeout(() => {
-      dbg("❌ TIMEOUT 10s — forzando error");
-      setLoadError("Timeout 10s: IndexedDB no respondió");
-    }, 10000);
-
-    // Test raw IndexedDB first
-    dbg("🔍 probando indexedDB nativo...");
-    new Promise<void>((resolve, reject) => {
-      try {
-        const req = indexedDB.open("__enfoque_debug__", 1);
-        req.onsuccess = () => { try { req.result.close(); } catch {} resolve(); };
-        req.onerror = () => reject(req.error ?? new Error("idb open error"));
-        req.onblocked = () => reject(new Error("indexedDB blocked"));
-        setTimeout(() => reject(new Error("idb open timeout 3s")), 3000);
-      } catch (e) {
-        reject(e);
-      }
-    })
-      .then(() => {
-        dbg("✅ indexedDB nativo OK");
-        dbg("getSettings...");
-        return getSettings();
-      })
+    getSettings()
       .then((s) => {
-        dbg("✅ settings OK");
-        clearTimeout(timer);
         setSettings(s);
         setTheme(s.theme);
       })
       .catch((err) => {
-        clearTimeout(timer);
-        const msg = err instanceof Error ? err.message : String(err);
-        dbg(`❌ ERROR: ${msg}`);
-        setLoadError(msg);
+        setLoadError(err instanceof Error ? err.message : String(err));
       });
   }
 
   useEffect(() => {
     loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const update = async <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
@@ -141,7 +105,6 @@ export default function AjustesPage() {
   if (loadError) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Ajustes" />
         <DBErrorMessage message={loadError} onRetry={() => { setLoadError(""); loadSettings(); }} />
       </AppShell>
     );
@@ -150,7 +113,6 @@ export default function AjustesPage() {
   if (!settings) {
     return (
       <AppShell>
-        <DebugOverlay lines={debugLog} page="Ajustes" />
         <div className="flex items-center justify-center min-h-[60dvh]">
           <div className="animate-pulse text-sm text-[var(--muted-foreground)]">Cargando...</div>
         </div>
@@ -160,7 +122,6 @@ export default function AjustesPage() {
 
   return (
     <AppShell>
-      <DebugOverlay lines={debugLog} page="Ajustes" />
       <div className="px-4 pt-5 pb-4 space-y-5">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Settings size={20} className="text-[var(--primary)]" />
@@ -183,27 +144,25 @@ export default function AjustesPage() {
                 className="mt-1"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="start-time">Hora de inicio</Label>
-                <Input
-                  id="start-time"
-                  type="time"
-                  value={settings.startTime}
-                  onChange={(e) => update("startTime", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="evening-time">Hora de cierre</Label>
-                <Input
-                  id="evening-time"
-                  type="time"
-                  value={settings.eveningTime}
-                  onChange={(e) => update("eveningTime", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
+            <div>
+              <Label htmlFor="start-time">Hora de inicio del día</Label>
+              <Input
+                id="start-time"
+                type="time"
+                value={settings.startTime}
+                onChange={(e) => update("startTime", e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="evening-time">Hora de cierre nocturno</Label>
+              <Input
+                id="evening-time"
+                type="time"
+                value={settings.eveningTime}
+                onChange={(e) => update("eveningTime", e.target.value)}
+                className="mt-1"
+              />
             </div>
           </CardContent>
         </Card>
@@ -389,7 +348,7 @@ export default function AjustesPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Borrar todos los datos?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción eliminará permanentemente todos tus registros, planificaciones, sesiones e historial. No se puede deshacer.
+                    Esta acción eliminará permanentemente todos tus registros, planificaciones, sesiones e historial. No se puede deshacer. Exporta un respaldo antes si necesitas conservar la información.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -417,7 +376,7 @@ export default function AjustesPage() {
           <CardContent className="space-y-2 text-sm text-[var(--muted-foreground)]">
             <p>Todos los datos se almacenan localmente en este dispositivo usando IndexedDB.</p>
             <p>No se envía ninguna información a servidores externos en esta versión.</p>
-            <p>Si limpias los datos del navegador o desinstala la aplicación, los datos se perderán.</p>
+            <p>Si limpias los datos del navegador o desinstala la aplicación, los datos se perderán. Usa la opción de exportar para mantener un respaldo.</p>
           </CardContent>
         </Card>
 
