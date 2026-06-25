@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
+  <rect width="192" height="192" rx="40" fill="#4f6ef7"/>
+  <!-- Círculo exterior (temporizador/enfoque) -->
+  <circle cx="96" cy="88" r="48" stroke="white" stroke-width="8" stroke-opacity="0.3"/>
+  <!-- Arco de progreso -->
+  <path d="M96 40 A48 48 0 0 1 144 88" stroke="white" stroke-width="8" stroke-linecap="round"/>
+  <!-- Punto central -->
+  <circle cx="96" cy="88" r="8" fill="white"/>
+  <!-- Línea de enfoque -->
+  <line x1="96" y1="88" x2="96" y2="52" stroke="white" stroke-width="6" stroke-linecap="round"/>
+  <!-- Texto "E" -->
+  <text x="96" y="160" text-anchor="middle" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="white" opacity="0.9">Enfoque</text>
+</svg>
