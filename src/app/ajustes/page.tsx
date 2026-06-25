@@ -146,22 +146,22 @@ export default function AjustesPage() {
             </div>
             <div>
               <Label htmlFor="start-time">Hora de inicio del día</Label>
-              <Input
+              <input
                 id="start-time"
                 type="time"
                 value={settings.startTime}
                 onChange={(e) => update("startTime", e.target.value)}
-                className="mt-1"
+                className="mt-1 block h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] transition-colors [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0"
               />
             </div>
             <div>
               <Label htmlFor="evening-time">Hora de cierre nocturno</Label>
-              <Input
+              <input
                 id="evening-time"
                 type="time"
                 value={settings.eveningTime}
                 onChange={(e) => update("eveningTime", e.target.value)}
-                className="mt-1"
+                className="mt-1 block h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] transition-colors [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0"
               />
             </div>
           </CardContent>
